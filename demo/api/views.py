@@ -1,10 +1,12 @@
 from django.shortcuts import render
 from rest_framework.response import Response
-from django.http import HttpResponse,JsonResponse
+from django.http import HttpResponse,JsonResponse,Http404
 from app1.models import *
-from .serializers import UserDataSerializer
+from .serializers import UserDataSerializer, EmployeeSerializer
 from rest_framework.decorators import api_view
 from rest_framework import status
+from rest_framework.views import APIView
+from employee.models import Employee
 
 # Create your views here.
 @api_view(['GET','POST'])
@@ -51,3 +53,44 @@ def updateUserDeatails(request,pk):
     elif request.method == 'DELETE':
         student.delete()
         return Response(status= status.HTTP_204_NO_CONTENT)
+    
+class Employees(APIView):
+    def get(self,request):
+        employees = Employee.objects.all()
+        serialized = EmployeeSerializer(employees, many=True)
+        return Response(serialized.data, status= status.HTTP_200_OK)
+    
+    def post(self,request):
+        serialized = EmployeeSerializer(data=request.data)
+        if serialized.is_valid():
+            serialized.save() 
+            return Response(serialized.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        
+
+class EmployeeDetailView(APIView):
+    def get_object(self,pk):
+        try:
+            return Employee.objects.get(pk=pk) #returning the matched employee record
+        except Employee.DoesNotExist:
+            raise Http404
+    
+    def get(self,request,pk):
+        employee = self.get_object(pk)  #passing request pk to get_objects() and assigning the returned value/record to the employee variable
+        serialized = EmployeeSerializer(employee)   #serializer converting python object to python dict datatype suitable for json
+        return Response(serialized.data, status=status.HTTP_200_OK)
+    
+    def put(self,request,pk):
+        employee = self.get_object(pk)
+        serialized = EmployeeSerializer(employee, data=request.data) #deserializer takes the request json data into data variable and converts the json data into python model instance
+        if serialized.is_valid():   #checks the model basic validations for the converted model object
+            serialized.save()
+            return Response(serialized.data, status=status.HTTP_200_OK)
+        else:
+            return Response(serialized.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self,request,pk):
+        employee = self.get_object(pk)
+        employee.delete()
+        return Response(status= status.HTTP_404_NOT_FOUND)
